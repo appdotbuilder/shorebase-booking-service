@@ -1,9 +1,23 @@
 
+import { db } from '../db';
+import { servicesTable } from '../db/schema';
+import { eq } from 'drizzle-orm';
 import { type Service } from '../schema';
 
 export async function getServices(): Promise<Service[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching all active services from the database.
-    // Should return services grouped by type (meeting rooms, cranes, forklifts).
-    return Promise.resolve([]);
+  try {
+    const results = await db.select()
+      .from(servicesTable)
+      .where(eq(servicesTable.is_active, true))
+      .execute();
+
+    // Convert numeric fields back to numbers
+    return results.map(service => ({
+      ...service,
+      hourly_rate: parseFloat(service.hourly_rate)
+    }));
+  } catch (error) {
+    console.error('Failed to fetch services:', error);
+    throw error;
+  }
 }

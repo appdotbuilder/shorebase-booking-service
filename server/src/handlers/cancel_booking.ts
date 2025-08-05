@@ -1,22 +1,50 @@
 
+import { db } from '../db';
+import { bookingsTable } from '../db/schema';
 import { type Booking } from '../schema';
+import { eq, and } from 'drizzle-orm';
 
 export async function cancelBooking(bookingId: number, userId: number): Promise<Booking> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is cancelling a booking by the user who created it.
-    // Should verify that the booking belongs to the user making the request.
-    // Should only allow cancellation if booking is in 'pending' or 'confirmed' status.
-    // Should update status to 'cancelled' and set updated_at timestamp.
-    return Promise.resolve({
-        id: bookingId,
-        user_id: userId,
-        service_id: 0,
-        start_time: new Date(),
-        end_time: new Date(),
+  try {
+    // First, check if booking exists and belongs to the user
+    const existingBooking = await db.select()
+      .from(bookingsTable)
+      .where(and(
+        eq(bookingsTable.id, bookingId),
+        eq(bookingsTable.user_id, userId)
+      ))
+      .execute();
+
+    if (existingBooking.length === 0) {
+      throw new Error('Booking not found or does not belong to user');
+    }
+
+    const booking = existingBooking[0];
+
+    // Check if booking can be cancelled (only pending or confirmed)
+    if (booking.status !== 'pending' && booking.status !== 'confirmed') {
+      throw new Error(`Cannot cancel booking with status: ${booking.status}`);
+    }
+
+    // Update booking status to cancelled
+    const result = await db.update(bookingsTable)
+      .set({
         status: 'cancelled',
-        total_amount: 0,
-        notes: null,
-        created_at: new Date(),
         updated_at: new Date()
-    } as Booking);
+      })
+      .where(eq(bookingsTable.id, bookingId))
+      .returning()
+      .execute();
+
+    const updatedBooking = result[0];
+    
+    // Convert numeric fields back to numbers
+    return {
+      ...updatedBooking,
+      total_amount: parseFloat(updatedBooking.total_amount)
+    };
+  } catch (error) {
+    console.error('Booking cancellation failed:', error);
+    throw error;
+  }
 }
